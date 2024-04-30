@@ -2,6 +2,8 @@ import asyncio
 import os
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.dispatcher import FSMContext
+from aiogram.contrib.middlewares.logging import LoggingMiddleware
+from gemini_analyze import analyze_pdf
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
@@ -13,6 +15,16 @@ from aiogram.types import (
 from dotenv import load_dotenv
 
 load_dotenv()
+
+keyboard = ReplyKeyboardMarkup(
+    keyboard=[
+        [
+            KeyboardButton(text='Анализ банковской выписки💳')
+        ],
+    ],
+    resize_keyboard=True,
+)
+
 
 USER_STATE = {}
 PICK_STATES = {}
@@ -48,8 +60,40 @@ async def handle_start(message: types.Message):
 Присоединяйся к нам и давай зарабатывать вместе! 💰
 
 📈 Не упусти свой шанс на финансовый успех с Narasense AI! 🚀"""
-    await bot.send_message(message.chat.id, welcome_msg) #reply_markup=keyboard)
+    await bot.send_message(message.chat.id, welcome_msg, reply_markup=keyboard)
 
 
+
+
+@dp.message_handler(lambda message: message.text == "Анализ банковской выписки💳")
+async def handler_company_news(message: types.Message):
+    USER_STATE[message.from_user.id] = message.text
+    await message.answer("Отправьте банковские выписки (в формате PDF):")
+
+@dp.message_handler(content_types=types.ContentTypes.DOCUMENT)
+async def process_pdf_document(message: types.Message):
+    if USER_STATE.get(message.from_user.id) == "Анализ банковской выписки💳":
+        if message.document.mime_type == 'application/pdf':
+            file_object = await message.document.download(destination_file=f'{message.document.file_id}.pdf')
+            file_path = str(file_object.name)
+            file_object.close()
+            loading_message = await message.reply("PDF файл получен и обрабатывается.")
+            
+            try:
+                response = analyze_pdf(file_path)
+            finally:
+                await asyncio.sleep(2) 
+                os.remove(file_path)
+
+            USER_STATE[message.from_user.id] = ''
+            await bot.edit_message_text(
+                response, chat_id=loading_message.chat.id, message_id=loading_message.message_id
+            )
+        else:
+            await message.answer("Пожалуйста, отправьте файл в формате PDF.")
+    else:
+        await message.answer("Неверный формат или контекст.")
+
+        
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
