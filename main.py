@@ -4,7 +4,7 @@ from aiogram import Bot, Dispatcher, executor, types
 from aiogram.dispatcher import FSMContext
 from aiogram.contrib.middlewares.logging import LoggingMiddleware
 from gemini_analyze import analyze_pdf
-from graph_yf import graph
+from graph_yf import graph, news as yf_news, get_recommendations_summary
 from investgemini import invest_gemini
 from aiogram.types import (
     CallbackQuery,
@@ -25,11 +25,31 @@ keyboard = ReplyKeyboardMarkup(
             KeyboardButton(text='Лучшие компании для инвестирования! 🌐')
         ],
         [
+            KeyboardButton(text="Функции"),
             KeyboardButton(text="График цен акции"),
         ]
     ],
     resize_keyboard=True,
 )
+
+keyboard_functions = ReplyKeyboardMarkup(
+    keyboard=[
+        # [
+        #     KeyboardButton(text="Получить новости рынка"),
+        #     KeyboardButton(text="Получить новости компании"),
+        # ],
+        [
+            KeyboardButton(text="Рекомендации"),
+            KeyboardButton(text="Новости Yahoo Finance"),
+        ],
+        [
+            KeyboardButton(text="Назад"),
+        ],
+    ],
+    resize_keyboard=True,
+)
+
+
 
 
 USER_STATE = {}
@@ -83,6 +103,26 @@ async def handle_test_gpt(message: types.Message):
         response, chat_id=loading_message.chat.id, message_id=loading_message.message_id
     )
 
+@dp.message_handler(lambda message: message.text == "Функции")
+async def handle_functions(message: types.Message):
+    await message.reply("Выберите функцию:", reply_markup=keyboard_functions)
+
+
+@dp.message_handler(lambda message: message.text == "Назад")
+async def handle_functions(message: types.Message):
+    await message.reply(text="Вы вернулись в главное меню", reply_markup=keyboard)
+
+@dp.message_handler(lambda message: message.text == "Рекомендации")
+async def handle_recommendations(message: types.Message):
+    USER_STATE[message.from_user.id] = message.text
+    await message.answer("Введите тикер компании:")
+
+
+@dp.message_handler(lambda message: message.text == "Новости Yahoo Finance")
+async def handler_company_news(message: types.Message):
+    USER_STATE[message.from_user.id] = message.text
+    await message.answer("Введите тикер компании:")
+
 @dp.message_handler(lambda message: message.text == "График цен акции")
 async def handler_graph(message: types.Message):
     USER_STATE[message.from_user.id] = message.text
@@ -123,6 +163,22 @@ async def process_ticker(message: types.Message):
             with open(image_path, "rb") as photo:
                 await message.reply_photo(photo, caption=f"{ticker} Stock Price Over Time")
             os.remove(image_path)
+            USER_STATE[message.from_user.id] = ""
+        
+        elif USER_STATE[message.from_user.id] == "Новости Yahoo Finance":
+            ticker = message.text.upper()
+            response = yf_news(ticker)
+            await message.answer(
+                response, parse_mode=types.ParseMode.MARKDOWN, reply_markup=keyboard
+            )
+            USER_STATE[message.from_user.id] = ""
+            
+        elif USER_STATE[message.from_user.id] == "Рекомендации":
+            ticker = message.text.upper()
+            response = get_recommendations_summary(ticker)
+            await message.answer(
+                response, parse_mode=types.ParseMode.MARKDOWN, reply_markup=keyboard
+            )
             USER_STATE[message.from_user.id] = ""
         else:
             pass

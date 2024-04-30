@@ -28,3 +28,32 @@ def graph(ticker):
     chart.plot(hist, indicators)
     chart.figure.savefig(image_path)
     return image_path
+
+
+
+def get_recommendations_summary(ticker):
+    msft = yf.Ticker(ticker)
+    
+    recommendations_df = msft.recommendations_summary
+
+    formatted_data = "Резюме рекомендаций для {}: \n\n".format(ticker)
+    formatted_data += recommendations_df.to_markdown(index=False)
+
+    return formatted_data
+
+
+
+def news(ticker):
+    msft = yf.Ticker(ticker)
+    hist = msft.history(period="1mo")
+    news_data = msft.news
+    i=0
+    articles=[]
+    for article in news_data:
+        if i>=2:
+            break
+        title = article['title']
+        link = article['link']
+        articles.append(f" {title}\n\n {link}\n\n")
+        i+=1
+    return "\n".join(articles)
