@@ -19,7 +19,7 @@ def get_pdf_text(pdf_path):
 
 def analyze_pdf(file_path):
     load_dotenv()
-    genai.configure(api_key=os.getenv('GEMINI_TOKEN'))
+    genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 
     generation_config = {
         "temperature": 0.3,

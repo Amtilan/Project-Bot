@@ -4,6 +4,7 @@ from aiogram import Bot, Dispatcher, executor, types
 from aiogram.dispatcher import FSMContext
 from aiogram.contrib.middlewares.logging import LoggingMiddleware
 from gemini_analyze import analyze_pdf
+from investgemini import invest_gemini
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
@@ -19,7 +20,8 @@ load_dotenv()
 keyboard = ReplyKeyboardMarkup(
     keyboard=[
         [
-            KeyboardButton(text='Анализ банковской выписки💳')
+            KeyboardButton(text='Анализ банковской выписки💳'),
+            KeyboardButton(text='Лучшие компании для инвестирования! 🌐')
         ],
     ],
     resize_keyboard=True,
@@ -62,8 +64,20 @@ async def handle_start(message: types.Message):
 📈 Не упусти свой шанс на финансовый успех с Narasense AI! 🚀"""
     await bot.send_message(message.chat.id, welcome_msg, reply_markup=keyboard)
 
+@dp.message_handler(
+    lambda message: message.text == "Лучшие компании для инвестирования! 🌐"
+)
+async def handle_test_gpt(message: types.Message):
+    image_path = "generated_image.png"
+    with open(image_path, "rb") as image_file:
+        await bot.send_photo(message.chat.id, photo=image_file)
+    loading_message = await message.reply("Загрузка...")
+    response = invest_gemini()
+    await asyncio.sleep(2)
 
-
+    await bot.edit_message_text(
+        response, chat_id=loading_message.chat.id, message_id=loading_message.message_id
+    )
 
 @dp.message_handler(lambda message: message.text == "Анализ банковской выписки💳")
 async def handler_company_news(message: types.Message):
@@ -72,7 +86,7 @@ async def handler_company_news(message: types.Message):
 
 @dp.message_handler(content_types=types.ContentTypes.DOCUMENT)
 async def process_pdf_document(message: types.Message):
-    if USER_STATE.get(message.from_user.id) == "Анализ банковской выписки💳":
+    if USER_STATE[message.from_user.id] == "Анализ банковской выписки💳":
         if message.document.mime_type == 'application/pdf':
             file_object = await message.document.download(destination_file=f'{message.document.file_id}.pdf')
             file_path = str(file_object.name)
@@ -91,9 +105,6 @@ async def process_pdf_document(message: types.Message):
             )
         else:
             await message.answer("Пожалуйста, отправьте файл в формате PDF.")
-    else:
-        await message.answer("Неверный формат или контекст.")
-
         
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
