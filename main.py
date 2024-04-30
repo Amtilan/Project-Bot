@@ -1,8 +1,7 @@
 import asyncio
 import os
 from aiogram import Bot, Dispatcher, executor, types
-from aiogram.dispatcher import FSMContext
-from aiogram.contrib.middlewares.logging import LoggingMiddleware
+from finhub import get_news, get_market_news
 from gemini_analyze import analyze_pdf
 from graph_yf import graph, news as yf_news, get_recommendations_summary
 from investgemini import invest_gemini
@@ -25,8 +24,10 @@ keyboard = ReplyKeyboardMarkup(
             KeyboardButton(text='Лучшие компании для инвестирования! 🌐')
         ],
         [
+        KeyboardButton(text="График цен акции"),
+        ],
+        [
             KeyboardButton(text="Функции"),
-            KeyboardButton(text="График цен акции"),
         ]
     ],
     resize_keyboard=True,
@@ -34,10 +35,10 @@ keyboard = ReplyKeyboardMarkup(
 
 keyboard_functions = ReplyKeyboardMarkup(
     keyboard=[
-        # [
-        #     KeyboardButton(text="Получить новости рынка"),
-        #     KeyboardButton(text="Получить новости компании"),
-        # ],
+        [
+            KeyboardButton(text="Получить новости рынка"),
+            KeyboardButton(text="Получить новости компании"),
+        ],
         [
             KeyboardButton(text="Рекомендации"),
             KeyboardButton(text="Новости Yahoo Finance"),
@@ -53,8 +54,6 @@ keyboard_functions = ReplyKeyboardMarkup(
 
 
 USER_STATE = {}
-PICK_STATES = {}
-CHECK_STATES = {}
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
@@ -63,8 +62,6 @@ dp = Dispatcher(bot)
 @dp.message_handler(commands=["start"])
 async def handle_start(message: types.Message):
     USER_STATE[message.from_user.id] = ""
-    PICK_STATES[message.from_user.id] = 0
-    CHECK_STATES[message.from_user.id] = 0
     welcome_msg = """🚀 Добро пожаловать в мир инвестиций с Narasense AI! 📈
 
 Ты хочешь увеличить свои доходы и стать успешным инвестором? Не знаешь, с какой акции начать? Мы здесь, чтобы помочь тебе в этом увлекательном путешествии!
@@ -128,6 +125,18 @@ async def handler_graph(message: types.Message):
     USER_STATE[message.from_user.id] = message.text
     await message.answer("Введите тикер компании:")
 
+@dp.message_handler(lambda message: message.text == "Получить новости рынка")
+async def handle_market_news(message: types.Message):
+    response = get_market_news()
+    await message.reply(
+        response, parse_mode=types.ParseMode.MARKDOWN, reply_markup=keyboard
+    )
+
+@dp.message_handler(lambda message: message.text == "Получить новости компании")
+async def handler_company_news(message: types.Message):
+    USER_STATE[message.from_user.id] = message.text
+    await message.answer("Введите тикер компании:")
+    
 @dp.message_handler(lambda message: message.text == "Анализ банковской выписки💳")
 async def handler_company_news(message: types.Message):
     USER_STATE[message.from_user.id] = message.text
@@ -168,6 +177,7 @@ async def process_ticker(message: types.Message):
         elif USER_STATE[message.from_user.id] == "Новости Yahoo Finance":
             ticker = message.text.upper()
             response = yf_news(ticker)
+            
             await message.answer(
                 response, parse_mode=types.ParseMode.MARKDOWN, reply_markup=keyboard
             )
@@ -176,8 +186,18 @@ async def process_ticker(message: types.Message):
         elif USER_STATE[message.from_user.id] == "Рекомендации":
             ticker = message.text.upper()
             response = get_recommendations_summary(ticker)
+            
             await message.answer(
                 response, parse_mode=types.ParseMode.MARKDOWN, reply_markup=keyboard
+            )
+            USER_STATE[message.from_user.id] = ""
+        
+        elif USER_STATE[message.from_user.id] == "Получить новости компании":
+            ticker = message.text.upper()
+            response = get_news(ticker)
+
+            await message.answer(
+                response, reply_markup=keyboard
             )
             USER_STATE[message.from_user.id] = ""
         else:
