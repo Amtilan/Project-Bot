@@ -5,6 +5,7 @@ from finhub import get_news, get_market_news
 from gemini_analyze import analyze_pdf
 from graph_yf import graph, news as yf_news, get_recommendations_summary
 from investgemini import invest_gemini
+from ask_gemini import askbot
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
@@ -54,7 +55,7 @@ keyboard_functions = ReplyKeyboardMarkup(
 
 
 USER_STATE = {}
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_API_TOKEN")
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
 
@@ -62,28 +63,32 @@ dp = Dispatcher(bot)
 @dp.message_handler(commands=["start"])
 async def handle_start(message: types.Message):
     USER_STATE[message.from_user.id] = ""
-    welcome_msg = """🚀 Добро пожаловать в мир инвестиций с Tiyin! 📈
+    welcome_msg = """🚀 Добро пожаловать в мир финансов с Tiyin! 📈
 
-Ты хочешь увеличить свои доходы и стать успешным инвестором? Не знаешь, с какой акции начать? Мы здесь, чтобы помочь тебе в этом увлекательном путешествии!
+✨ Что сделает Tiyin для тебя:
 
-✨ Что делает Tiyin для тебя:
-
-📊 Анализ Рынка: Наш искусственный интеллект ежедневно сканирует рынок, выявляя перспективные акции для инвестирования.
+📊 Анализ Финансов: Наш искусственный интеллект проанализирует вашу бакновскую выписку и сделает все чтобы помочь экономить!
 
 🔍 Точные Рекомендации: Получай точные рекомендации от нашего бота, основанные на глубоком анализе данных и трендов.
 
-💡 Образование и Советы: Узнавай новые стратегии, получай образовательный контент и советы от опытных инвесторов.
-
-🔄 Постоянное Обновление: Мы постоянно обновляем информацию, чтобы ты всегда был в курсе последних событий на финансовых рынках.
+💡 Образование и Советы: Узнавай новые стратегии инветирования, получай образовательный контент.
 
 🔒 Безопасность и Прозрачность: Твои данные в безопасности, а наши рекомендации прозрачны и обоснованы.
 
-🚀 Стань успешным инвестором с Tiyin прямо сейчас!
-
-Присоединяйся к нам и давай зарабатывать вместе! 💰
-
-📈 Не упусти свой шанс на финансовый успех с Tiyin! 🚀"""
+🚀 Стань финансово грамотным с Tiyin прямо сейчас!"""
     await bot.send_message(message.chat.id, welcome_msg, reply_markup=keyboard)
+
+@dp.message_handler(commands=['ask'])
+async def askgpt(message: types.Message):
+    loading_message = await message.reply("Загрузка...")
+    response = askbot(message.text)
+    await asyncio.sleep(2)
+
+    await bot.edit_message_text(
+    text=response,
+    chat_id=loading_message.chat.id,
+    message_id=loading_message.message_id,
+)
 
 @dp.message_handler(
     lambda message: message.text == "Лучшие компании для инвестирования! 🌐"
@@ -149,7 +154,7 @@ async def process_pdf_document(message: types.Message):
             file_object = await message.document.download(destination_file=f'{message.document.file_id}.pdf')
             file_path = str(file_object.name)
             file_object.close()
-            loading_message = await message.reply_video(video="BAACAgIAAxkBAAIII2YxUPJsbIZWuMUd_gRJiCNlF6qpAALVRwACrFGIScoTcPu3ueTpNAQ")
+            loading_message = await message.reply_video(video="BAACAgIAAxkBAAMlZjJ6-k5XtwkPm9PY1OxWYDxs2CAAAtVHAAKsUYhJ7PMoM71siCY0BA", caption="Енот анализирует ваши данные!")
             try:
                 response = analyze_pdf(file_path)
             finally:
