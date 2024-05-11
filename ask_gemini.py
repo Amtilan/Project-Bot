@@ -47,3 +47,12 @@ def askbot(user_quiston):
             return 'Я искуственный интелект и не могу отвечать на такой тип вопросов.'
     else:
         return 'После /ask напишите свой вопрос.'
+
+def spehere():
+    load_dotenv()   
+    genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+    model = genai.GenerativeModel('gemini-pro')
+    user_question = "Вы профессиональный финансист и экономист.Не говорите, что вы профессиональный финансист и экономист. Мне нужны 3 перспективные сектора для инвестиций. Сохраняйте профессионализм и читабельно напишите текст, в какие сферы лучше инвестировать. Кратко опишите каждую сферу. Не говорите, что вы профессиональный экономист и финансист."
+    response = model.generate_content(user_question)
+    if user_question:
+        return response.text

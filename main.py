@@ -3,9 +3,12 @@ import os
 from aiogram import Bot, Dispatcher, executor, types
 from finhub import get_news, get_market_news
 from gemini_analyze import analyze_pdf
+import datetime
 from graph_yf import graph, news as yf_news, get_recommendations_summary
 from investgemini import invest_gemini
-from ask_gemini import askbot
+from mongo_fetch import update_and_save_data
+from ask_gemini import askbot, spehere
+import logging
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
@@ -21,11 +24,12 @@ load_dotenv()
 keyboard = ReplyKeyboardMarkup(
     keyboard=[
         [
-            KeyboardButton(text='Анализ банковской выписки💳'),
+            # KeyboardButton(text='Анализ банковской выписки💳'),
             KeyboardButton(text='Лучшие компании для инвестирования! 🌐')
         ],
         [
-        KeyboardButton(text="График цен акции"),
+            KeyboardButton(text="Сектора"),
+            KeyboardButton(text="График цен акции"),
         ],
         [
             KeyboardButton(text="Функции"),
@@ -52,11 +56,9 @@ keyboard_functions = ReplyKeyboardMarkup(
 )
 
 
-
-
 USER_STATE = {}
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_API_TOKEN")
-bot = Bot(token=TELEGRAM_TOKEN)
+bot = Bot(token='6991585632:AAF7018wiSLJBdpVzbQrvIicB-Zex51v3s0')
 dp = Dispatcher(bot)
 
 
@@ -77,6 +79,38 @@ async def handle_start(message: types.Message):
 
 🚀 Стань финансово грамотным с Tiyin прямо сейчас!"""
     await bot.send_message(message.chat.id, welcome_msg, reply_markup=keyboard)
+
+@dp.message_handler(
+    lambda message: message.text == "Сектора"
+)
+async def handle_test_gpt(message: types.Message):
+    loading_message = await message.reply("Загрузка...")
+    response = spehere()
+    await asyncio.sleep(2)
+
+    await bot.edit_message_text(
+        response, chat_id=loading_message.chat.id, message_id=loading_message.message_id
+    )
+
+
+async def daily_task():
+    await update_and_save_data()
+
+async def run_daily_task_at_specific_time(target_time):
+    while True:
+        now = datetime.datetime.now()
+        future = datetime.datetime.combine(now.date(), target_time)
+        if now.time() > target_time:
+            future += datetime.timedelta(days=1)
+        wait_seconds = (future - now).total_seconds()
+        logging.info(f"Next run in {wait_seconds} seconds")
+        await asyncio.sleep(wait_seconds)
+        await daily_task()
+
+async def on_startup(_):
+    target_time = datetime.time(10, 0) 
+    asyncio.create_task(run_daily_task_at_specific_time(target_time))
+
 
 @dp.message_handler(commands=['ask'])
 async def askgpt(message: types.Message):
