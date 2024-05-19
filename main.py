@@ -5,7 +5,7 @@ from finhub import get_news, get_market_news
 from gemini_analyze import analyze_pdf
 import datetime
 from graph_yf import graph, news as yf_news, get_recommendations_summary
-from investgemini import invest_gemini
+from investgemini import invest_gemini, get_curent, check_for_value
 from mongo_fetch import update_and_save_data
 from ask_gemini import askbot, spehere
 import logging
@@ -54,11 +54,11 @@ keyboard_functions = ReplyKeyboardMarkup(
     ],
     resize_keyboard=True,
 )
-
-
+keyboard_storage = {}
+PICK_STATE = {}
 USER_STATE = {}
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_API_TOKEN")
-bot = Bot(token='6991585632:AAF7018wiSLJBdpVzbQrvIicB-Zex51v3s0')
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_API_TOKEN1")
+bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
 
 
@@ -124,6 +124,46 @@ async def askgpt(message: types.Message):
     message_id=loading_message.message_id,
 )
 
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('invest_'))
+async def handle_investment(callback_query: CallbackQuery):
+    company_name = callback_query.data[len('invest_'):]
+    
+
+    keyboard1 = InlineKeyboardMarkup()
+    companies = get_curent(name=company_name)
+    
+            
+    info = companies['data'][0]['data']
+
+    response_text = f"""
+<b>Вы выбрали инвестировать в компанию {company_name}</b>
+<i>Вот дополнительная информация:</i>
+
+<b>ISIN:</b> <code>{companies['isin']}</code>
+
+<b>Последний год баланса:</b> {info['last_balance_year']}
+<b>Рыночная капитализация:</b> ${info['market_capitalization']:,.2f}
+<b>Маржа EBIT:</b> {info['ebit_margin']['value']:.2f}% {check_for_value(info['ebit_margin']['point'])}
+<b>Коэффициент собственного капитала:</b> {info['equity_ratio_in_percent']['value']:.2f}% {check_for_value(info['equity_ratio_in_percent']['point'])}
+<b>Доходность собственного капитала:</b> {info['return_equity']['value']:.2f}% {check_for_value(info['return_equity']['point'])}
+<b>P/E Ratio (5 лет):</b> {info['price_earnings_ratio_5y']['value']:.2f} {check_for_value(info['price_earnings_ratio_5y']['point'])}
+<b>P/E Ratio (текущий год):</b> {info['price_earnings_ratio_ay']['value']:.2f} {check_for_value(info['price_earnings_ratio_ay']['point'])}
+<b>Рост прибыли:</b> {info['profit_growth']['value']} {check_for_value(info['profit_growth']['point'])}
+<b>Сравнение цены акции (6 мес.):</b> {info['share_price_m6_comparison']['value']} {check_for_value(info['share_price_m6_comparison']['point'])}
+<b>Сравнение цены акции (1 год):</b> {info['share_price_y1_comparison']['value']} {check_for_value(info['share_price_y1_comparison']['point'])}
+<b>Моментум цены акции:</b> {info['share_price_momentum']['value']} {check_for_value(info['share_price_momentum']['point'])}
+<b>Общее количество баллов:</b> {info['total_points']['point']} из {info['total_points']['value']} 
+"""
+    keyboard1 = keyboard_storage.get(callback_query.message.message_id, InlineKeyboardMarkup())
+    await bot.edit_message_text(
+        text=response_text,
+        chat_id=callback_query.message.chat.id,
+        message_id=callback_query.message.message_id,
+        reply_markup=keyboard1,
+        parse_mode='HTML'
+    )
+    await callback_query.answer()
+
 @dp.message_handler(
     lambda message: message.text == "Лучшие компании для инвестирования! 🌐"
 )
@@ -131,12 +171,26 @@ async def handle_test_gpt(message: types.Message):
     image_path = "generated_image.png"
     with open(image_path, "rb") as image_file:
         await bot.send_photo(message.chat.id, photo=image_file)
+    
     loading_message = await message.reply("Загрузка...")
-    response = invest_gemini()
+    
+    response, companies = invest_gemini()
     await asyncio.sleep(2)
+    keyboard1 = InlineKeyboardMarkup()
+    if message.chat.id not in keyboard_storage:
+        keyboard1 = InlineKeyboardMarkup()
+        for company in companies:
+            button = InlineKeyboardButton(text=company["name"], callback_data=f'invest_{company["name"]}')
+            keyboard1.add(button)
+        keyboard_storage[loading_message.message_id] = keyboard1
+    else:
+        keyboard1 = keyboard_storage[loading_message.message_id]
 
     await bot.edit_message_text(
-        response, chat_id=loading_message.chat.id, message_id=loading_message.message_id
+        text=response,
+        chat_id=loading_message.chat.id,
+        message_id=loading_message.message_id,
+        reply_markup=keyboard1
     )
 
 @dp.message_handler(lambda message: message.text == "Функции")

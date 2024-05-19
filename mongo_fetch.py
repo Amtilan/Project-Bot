@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 import json
 import asyncio
 
-
 async def update_and_save_data():
     load_dotenv()
     client = MongoClient(os.getenv('MONGO_DB'))
@@ -17,3 +16,5 @@ async def update_and_save_data():
     with open('results.json', 'w') as file:
         pretty_json = json.dumps(results_list, indent=4)
         file.write(pretty_json)
+        
+asyncio.run(update_and_save_data())

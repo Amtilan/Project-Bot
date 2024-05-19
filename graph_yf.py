@@ -29,8 +29,6 @@ def graph(ticker):
     chart.figure.savefig(image_path)
     return image_path
 
-
-
 def get_recommendations_summary(ticker):
     msft = yf.Ticker(ticker)
     
@@ -40,8 +38,6 @@ def get_recommendations_summary(ticker):
     formatted_data += recommendations_df.to_markdown(index=False)
 
     return formatted_data
-
-
 
 def news(ticker):
     msft = yf.Ticker(ticker)

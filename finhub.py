@@ -6,8 +6,6 @@ load_dotenv()
 finnhub_token = os.getenv("FINNHUB_TOKEN")
 finnhub_client = finnhub.Client(api_key=finnhub_token)
 
-
-
 def get_news(ticker):
     try:
         today_date = datetime.today().strftime('%Y-%m-%d')

@@ -4,7 +4,21 @@ import google.generativeai as genai
 import random
 import json
 
-def get_json_text(json_path):
+def check_for_value(value : int) -> str:
+    if value == 0: return '🟨'
+    elif value == 1: return '🟩'
+    return '🟥'
+
+def get_curent(name) -> dict:
+    with open('results.json', 'r') as file:
+        data = json.load(file)
+    result = []
+    for companie in data:
+        if companie['name'] == name:
+            result = companie
+    return result
+
+def get_json_text(json_path) -> (tuple[str, dict]):
     if not os.path.exists(json_path):
         raise FileNotFoundError(f"No file found at the provided path: {json_path}")
 
@@ -18,9 +32,9 @@ def get_json_text(json_path):
 
     formatted_random_items = json.dumps(random_items, indent=4)
     
-    return formatted_random_items
+    return formatted_random_items, random_items
 
-def invest_gemini():
+def invest_gemini() -> (tuple[str, dict]):
     load_dotenv()
 
     genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
@@ -40,15 +54,12 @@ def invest_gemini():
 
     Пожалуйста, поделитесь 3 такими рекомендациями.
     """
-    data = get_json_text(json_file_path)
+    data, nedeed_data = get_json_text(json_file_path)
 
     user_question += f"\n\nВыберите три акции из следующего списка: {data}"
     response = model.generate_content(user_question)
 
     if response.text:
-        return response.text
+        return response.text, nedeed_data
     else:
         return ""
-    
-    
-
