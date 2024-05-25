@@ -5,9 +5,9 @@ import random
 import json
 
 def check_for_value(value : int) -> str:
-    if value == 0: return '🟨'
-    elif value == 1: return '🟩'
-    return '🟥'
+    if value == 0: return '➖'
+    elif value == 1: return '📈'
+    return '📉'
 
 def get_curent(name) -> dict:
     with open('results.json', 'r') as file:
@@ -37,7 +37,7 @@ def get_json_text(json_path) -> (tuple[str, dict]):
 def invest_gemini() -> (tuple[str, dict]):
     load_dotenv()
 
-    genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+    genai.configure(api_key=os.getenv('GGEMINI_API_KEY'))
     model = genai.GenerativeModel('gemini-1.5-pro-latest')
 
     json_file_path = 'results.json'

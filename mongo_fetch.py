@@ -16,5 +16,10 @@ async def update_and_save_data():
     with open('results.json', 'w') as file:
         pretty_json = json.dumps(results_list, indent=4)
         file.write(pretty_json)
-        
-asyncio.run(update_and_save_data())
+
+def is_allowed_user(user_id):
+    load_dotenv()
+    client = MongoClient(os.getenv('MONGO_DB'))
+    db = client["usersnarasense"]
+    user = db.users.find_one({"user_id": user_id})
+    return user is not None
