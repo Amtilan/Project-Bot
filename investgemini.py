@@ -9,6 +9,11 @@ def check_for_value(value : int) -> str:
     elif value == 1: return '📈'
     return '📉'
 
+def get_all_values():
+    with open('results.json', 'r') as file:
+        data = json.load(file)
+    return data
+
 def get_curent(name) -> dict:
     with open('results.json', 'r') as file:
         data = json.load(file)

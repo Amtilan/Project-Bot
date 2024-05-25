@@ -5,7 +5,7 @@ from finhub import get_news, get_market_news
 from gemini_analyze import analyze_pdf
 import datetime
 from graph_yf import graph, news as yf_news, get_recommendations_summary
-from investgemini import invest_gemini, get_curent, check_for_value
+from investgemini import invest_gemini, get_curent, check_for_value, get_all_values
 from mongo_fetch import update_and_save_data, is_allowed_user
 from ask_gemini import askbot, spehere
 import logging
@@ -27,6 +27,7 @@ keyboard = ReplyKeyboardMarkup(
             KeyboardButton(text='Лучшие компании для инвестирования! 🌐')
         ],
         [
+            KeyboardButton(text='Лучшие акции!'),
             KeyboardButton(text="Сектора"),
             KeyboardButton(text="График цен акции"),
         ],
@@ -141,6 +142,124 @@ async def askgpt(message: types.Message):
     message_id=loading_message.message_id,
 )
 
+ITEMS_PER_PAGE = 10
+
+def generate_ticker_keyboard(page_number: int):
+    keyboard = InlineKeyboardMarkup(row_width=2)
+    start_index = page_number * ITEMS_PER_PAGE
+    end_index = start_index + ITEMS_PER_PAGE
+    data = get_all_values()
+    result = []
+    for i in data:
+        result.append(i['name'])
+    tickers_on_page = result[start_index:end_index]
+
+    for i in range(0, len(tickers_on_page), 2):
+        if i + 1 < len(tickers_on_page):
+            keyboard.row(
+                InlineKeyboardButton(text=tickers_on_page[i], callback_data=f"ticker_{tickers_on_page[i]}"),
+                InlineKeyboardButton(text=tickers_on_page[i + 1], callback_data=f"ticker_{tickers_on_page[i + 1]}")
+            )
+        else:
+            keyboard.add(InlineKeyboardButton(text=tickers_on_page[i], callback_data=f"ticker_{tickers_on_page[i]}"))
+    navigation_buttons = []
+    if page_number > 0:
+        navigation_buttons.append(InlineKeyboardButton(text="Назад", callback_data=f"page_{page_number-1}"))
+    if end_index < len(result):
+        navigation_buttons.append(InlineKeyboardButton(text="Вперёд", callback_data=f"page_{page_number+1}"))
+    
+    if navigation_buttons:
+        keyboard.row(*navigation_buttons)
+
+    return keyboard
+
+@dp.message_handler(
+lambda message: message.text == "Лучшие акции!"                    
+)
+async def send_tickers(message: types.Message):
+    page_number = 0
+    await message.answer("Выберите тикер:", reply_markup=generate_ticker_keyboard(page_number))
+
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('page_'))
+async def process_page_callback(callback_query: types.CallbackQuery):
+    page_number = int(callback_query.data.split('_')[1])
+    await bot.edit_message_text(chat_id=callback_query.message.chat.id, 
+                                message_id=callback_query.message.message_id, 
+                                text="Выберите тикер:",
+                                reply_markup=generate_ticker_keyboard(page_number))
+
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('ticker_'))
+async def process_ticker_callback(callback_query: types.CallbackQuery):
+    ticker = callback_query.data.split('_')[1]
+    await bot.answer_callback_query(callback_query.id, text=f"Вы выбрали {ticker}")
+    company_name = ticker
+
+    companies = get_curent(name=company_name)
+                
+    info = companies['data'][0]['data']
+    
+    response_text = f"""
+<b>Вы выбрали инвестировать в компанию {company_name}</b>
+<i>Вот дополнительная информация:</i>
+
+<b>ISIN:</b> <code>{companies['isin']}</code>
+"""
+    if info.get('last_balance_year'):
+        response_text += f"<b>Последний год баланса:</b> {info['last_balance_year']}\n"
+
+    if info.get('market_capitalization'):
+        response_text += f"<b>Рыночная капитализация:</b> ${info['market_capitalization']:,.2f}\n"
+
+    ebit_margin = info.get('ebit_margin')
+    if ebit_margin and ebit_margin.get('value') is not None:
+        response_text += f"<b>Маржа EBIT:</b> {ebit_margin['value']:.2f}% {check_for_value(ebit_margin['point'])}\n"
+
+    equity_ratio = info.get('equity_ratio_in_percent')
+    if equity_ratio and equity_ratio.get('value') is not None:
+        response_text += f"<b>Коэффициент собственного капитала:</b> {equity_ratio['value']:.2f}% {check_for_value(equity_ratio['point'])}\n"
+
+    return_equity = info.get('return_equity')
+    if return_equity and return_equity.get('value') is not None:
+        response_text += f"<b>Доходность собственного капитала:</b> {return_equity['value']:.2f}% {check_for_value(return_equity['point'])}\n"
+
+    pe_ratio_5y = info.get('price_earnings_ratio_5y')
+    if pe_ratio_5y and pe_ratio_5y.get('value') is not None:
+        response_text += f"<b>P/E Ratio (5 лет):</b> {pe_ratio_5y['value']:.2f} {check_for_value(pe_ratio_5y['point'])}\n"
+
+    pe_ratio_ay = info.get('price_earnings_ratio_ay')
+    if pe_ratio_ay and pe_ratio_ay.get('value') is not None:
+        response_text += f"<b>P/E Ratio (текущий год):</b> {pe_ratio_ay['value']:.2f} {check_for_value(pe_ratio_ay['point'])}\n"
+
+    profit_growth = info.get('profit_growth')
+    if profit_growth and profit_growth.get('value') is not None:
+        response_text += f"<b>Рост прибыли:</b> {profit_growth['value']} {check_for_value(profit_growth['point'])}\n"
+
+    share_price_m6 = info.get('share_price_m6_comparison')
+    if share_price_m6 and share_price_m6.get('value') is not None:
+        response_text += f"<b>Сравнение цены акции (6 мес.):</b> {share_price_m6['value']} {check_for_value(share_price_m6['point'])}\n"
+
+    share_price_y1 = info.get('share_price_y1_comparison')
+    if share_price_y1 and share_price_y1.get('value') is not None:
+        response_text += f"<b>Сравнение цены акции (1 год):</b> {share_price_y1['value']} {check_for_value(share_price_y1['point'])}\n"
+
+    share_price_momentum = info.get('share_price_momentum')
+    if share_price_momentum and share_price_momentum.get('value') is not None:
+        response_text += f"<b>Моментум цены акции:</b> {share_price_momentum['value']} {check_for_value(share_price_momentum['point'])}\n"
+
+    total_points = info.get('total_points')
+    if total_points and total_points.get('point') is not None and total_points.get('value') is not None:
+        response_text += f"<b>Общее количество баллов:</b> {total_points['point']} из {total_points['value']}\n"
+            
+    await bot.edit_message_text(
+        text=response_text,
+        chat_id=callback_query.message.chat.id,
+        message_id=callback_query.message.message_id,
+        reply_markup=generate_ticker_keyboard(0), 
+        parse_mode='HTML'
+    )
+    await callback_query.answer()
+
+
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith('invest_'))
 async def handle_investment(callback_query: CallbackQuery):
     company_name = callback_query.data[len('invest_'):]
@@ -158,8 +277,6 @@ async def handle_investment(callback_query: CallbackQuery):
 
 <b>ISIN:</b> <code>{companies['isin']}</code>
 """
-
-        # Условные добавления строк
         if info.get('last_balance_year'):
             response_text += f"<b>Последний год баланса:</b> {info['last_balance_year']}\n"
 
